@@ -1,0 +1,14 @@
+package org.game.sudoku.exceptions;
+
+public enum GameExceptionCode {
+    ACTIVE_GAME_ALREADY_EXISTS,
+    NO_ELIGIBLE_PUZZLE_AVAILABLE,
+    GAME_NOT_FOUND,
+    GAME_NOT_IN_PROGRESS,
+    UNSUPPORTED_MODE,
+    INVALID_ACTION,
+    INVALID_CELL,
+    INVALID_VALUE,
+    CLUE_CELL_EDIT_FORBIDDEN,
+    FORBIDDEN_ACTION
+}
