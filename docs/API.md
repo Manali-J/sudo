@@ -1,117 +1,80 @@
-# Sudoku Discord Bot API Contract
+# Sudoku Backend API
 
-## Overview
+## Status
 
-This document defines the first backend API contract for MVP1.
+This document describes the API that is implemented in the backend today.
 
-It is designed for:
-
-- Discord bot session creation
-- Discord Activity session loading
-- solo gameplay in MVP1
-- future collaborative extension without breaking core response shapes
-
-The backend remains the authoritative owner of all game logic and state.
-
-## API Style
-
-- transport: HTTPS + JSON
-- base path: `/api/v1`
-- time format: ISO 8601 UTC timestamps
-- ids: UUID strings for internal entities
-- Discord ids: strings
-
-## MVP1 Scope
-
-The API supports:
+Currently implemented:
 
 - create a game session
-- fetch current game state
-- submit a final value
-- update pencil marks
-- erase a cell value
-- request a hint
-- reset a game
-- cancel a game
+- validation and error responses for that endpoint
 
-The API does not yet require:
+Not implemented yet:
 
-- push updates
-- collaborative presence
-- lobby management
-- host transfer endpoints
+- fetch game session by id
+- board/action endpoints
+- hint/reset/cancel endpoints
 
-## Core Design Decisions
+## Base Path
 
-### Validation Mode
+- Base path: `/api/v1`
+- Transport: JSON over HTTP
+- Time format: ISO 8601 UTC timestamps
+- Enum values are serialized in uppercase because the backend currently uses Java enum names directly
 
-- MVP1 defaults to `guided`
-- `classic` remains part of the domain model and API enum surface
-- the client should treat `validationMode` as backend-owned session metadata
-
-### Resource Shape
-
-Two response families are enough for MVP1:
-
-- `GameSessionState` for full state reads
-- `GameActionResult` for mutations that return the updated state plus action feedback
-
-This keeps the frontend simple and avoids a separate patch format in the first version.
-
-## Authentication Context
-
-Exact production authentication is still TBD, but every mutating request must carry the acting Discord user identity.
-
-Suggested interim header:
-
-- `X-Discord-User-Id`
-
-Later this can be replaced by signed Discord Activity or bot-authenticated identity propagation without changing the request bodies.
-
-## Enumerations
+## Implemented Enumerations
 
 ### Difficulty
 
-- `easy`
-- `medium`
-- `hard`
-- `lethal`
+- `EASY`
+- `MEDIUM`
+- `HARD`
+- `LETHAL`
 
 ### GameMode
 
-- `single`
-- `collab`
+- `SINGLE`
+- `COLLAB`
 
 ### ValidationMode
 
-- `guided`
-- `classic`
+- `GUIDED`
+- `CLASSIC`
 
 ### GameStatus
 
-- `pending`
-- `active`
-- `completed`
-- `cancelled`
-- `abandoned`
+- `PENDING`
+- `ACTIVE`
+- `COMPLETED`
+- `CANCELLED`
+- `ABANDONED`
 
-### CellFeedbackType
+## Implemented Resource Shapes
 
-- `correct`
-- `incorrect`
+### CreateGameRequest
 
-### ActionType
+```json
+{
+  "mode": "SINGLE",
+  "difficulty": "MEDIUM",
+  "validationMode": "GUIDED",
+  "guildId": "123456789012345678",
+  "channelId": "234567890123456789",
+  "hostUserId": "345678901234567890",
+  "createdByUserId": "345678901234567890"
+}
+```
 
-- `enter_value`
-- `set_pencil_marks`
-- `erase_cell`
-- `request_hint`
-- `reset_game`
-- `cancel_game`
+Notes:
 
-## Data Contracts
+- `validationMode` is currently required by the backend
+- `hostUserId` is currently required by the backend
+- `createdByUserId` is currently required by the backend
+- collaborative mode is not supported yet even though `COLLAB` exists in the enum surface
 
-### GameSessionState
+### GameSession
+
+Current create response body:
 
 ```json
 {
@@ -119,356 +82,96 @@ Later this can be replaced by signed Discord Activity or bot-authenticated ident
   "puzzleId": "c7fa5f3f-59f3-496a-925b-c10da6e92033",
   "guildId": "123456789012345678",
   "channelId": "234567890123456789",
-  "mode": "single",
-  "status": "active",
-  "difficulty": "medium",
-  "validationMode": "guided",
+  "status": "ACTIVE",
+  "mode": "SINGLE",
+  "validationMode": "GUIDED",
+  "difficulty": "MEDIUM",
   "hostUserId": "345678901234567890",
   "createdByUserId": "345678901234567890",
   "startedAt": "2026-03-13T11:30:00Z",
-  "updatedAt": "2026-03-13T11:31:20Z",
-  "completedAt": null,
-  "board": {
-    "cells": [
-      {
-        "row": 0,
-        "column": 0,
-        "isClue": true,
-        "clueValue": 5,
-        "enteredValue": null,
-        "effectiveValue": 5,
-        "pencilMarks": [],
-        "lastUpdatedBy": null,
-        "lastUpdatedAt": null,
-        "lastFeedback": null
-      },
-      {
-        "row": 0,
-        "column": 1,
-        "isClue": false,
-        "clueValue": null,
-        "enteredValue": 7,
-        "effectiveValue": 7,
-        "pencilMarks": [],
-        "lastUpdatedBy": "345678901234567890",
-        "lastUpdatedAt": "2026-03-13T11:31:20Z",
-        "lastFeedback": {
-          "type": "correct",
-          "message": "Spot on",
-          "expiresAt": "2026-03-13T11:31:24Z"
-        }
-      }
-    ]
-  },
-  "progress": {
-    "filledEditableCells": 12,
-    "totalEditableCells": 51,
-    "mistakeCount": 2,
-    "hintCount": 1,
-    "completionPercent": 23
-  },
-  "players": [
-    {
-      "userId": "345678901234567890",
-      "role": "host",
-      "membershipStatus": "active",
-      "joinedAt": "2026-03-13T11:30:00Z",
-      "lastSeenAt": "2026-03-13T11:31:20Z"
-    }
-  ]
+  "updatedAt": "2026-03-13T11:30:00Z",
+  "completedAt": null
 }
 ```
 
 Notes:
 
-- `cells` always contains 81 entries
-- `effectiveValue` is `clueValue` for clue cells, otherwise `enteredValue`
-- `lastFeedback` is optional transient metadata for rendering guided-mode feedback
-- `mistakeCount` is an accumulated session metric, not cell state
-
-### GameActionResult
-
-```json
-{
-  "actionId": "8f5af67a-fdd9-4f41-a6f0-8bdb8d4c77f9",
-  "actionType": "enter_value",
-  "accepted": true,
-  "rejectionReason": null,
-  "feedback": {
-    "type": "correct",
-    "message": "Spot on",
-    "row": 0,
-    "column": 1,
-    "expiresAt": "2026-03-13T11:31:24Z"
-  },
-  "state": {}
-}
-```
-
-Notes:
-
-- `state` is a full `GameSessionState`
-- `accepted = false` is used for rejected requests such as editing a clue cell or violating classic-mode conflict rules
-- `feedback` may be null for non-feedback actions such as reset or cancel
+- the current response is a flat `GameSession` object
+- board state, progress, and player lists are not part of the implemented response yet
 
 ### Error Response
 
+Current error shape from `GlobalControllerAdvice`:
+
 ```json
 {
-  "error": {
-    "code": "GAME_NOT_FOUND",
-    "message": "No game exists for the provided id.",
-    "details": null
-  }
+  "timestamp": "2026-03-13T11:31:20Z",
+  "status": 400,
+  "error": "Bad Request",
+  "code": "VALIDATION_ERROR",
+  "message": "guildId must not be blank",
+  "path": "/api/v1/game/create"
 }
 ```
 
-Suggested error codes:
+Possible current error codes include:
 
+- `VALIDATION_ERROR`
+- `BAD_REQUEST`
+- `INTERNAL_SERVER_ERROR`
+- `NO_ELIGIBLE_PUZZLE_AVAILABLE`
 - `GAME_NOT_FOUND`
-- `PUZZLE_NOT_FOUND`
-- `UNAUTHORIZED_PLAYER`
-- `ACTIVE_GAME_CONFLICT`
+- `ACTIVE_GAME_ALREADY_EXISTS`
+- `UNSUPPORTED_MODE`
 - `INVALID_ACTION`
 - `INVALID_CELL`
+- `INVALID_VALUE`
 - `CLUE_CELL_EDIT_FORBIDDEN`
-- `GAME_NOT_ACTIVE`
-- `UNSUPPORTED_MODE`
+- `FORBIDDEN_ACTION`
 
-## Endpoints
+## Implemented Endpoints
 
-### POST `/game`
+### POST `/game/create`
 
 Creates a new game session.
 
-Primary caller:
+Full path:
 
-- Discord bot slash-command handler
+- `/api/v1/game/create`
 
-Request:
+Request body:
 
-```json
-{
-  "mode": "single",
-  "difficulty": "medium",
-  "validationMode": "guided",
-  "guildId": "123456789012345678",
-  "channelId": "234567890123456789",
-  "createdByUserId": "345678901234567890"
-}
-```
+- `CreateGameRequest`
 
-Response:
+Success response:
 
 - `201 Created`
-- body: `GameSessionState`
+- body: `GameSession`
 
-Rules:
+Current behavior:
 
-- reject if the user already has another active game
-- `validationMode` may be omitted by the caller and defaulted to `guided`
-- MVP1 should reject `mode = collab` with `UNSUPPORTED_MODE` until collaboration is implemented
+- only `SINGLE` mode is supported
+- `COLLAB` currently returns `UNSUPPORTED_MODE`
+- invalid request bodies return `400`
+- if no eligible puzzle is available, the backend returns a handled error response
 
-### GET `/game/{gameId}`
+## Known Contract Gaps
 
-Returns the latest persisted session state.
+These are intentionally not documented as implemented because the backend does not expose them yet:
 
-Primary callers:
+- `GET /api/v1/game/{gameId}`
+- `POST /api/v1/game/{gameId}/actions/enter-value`
+- `PUT /api/v1/game/{gameId}/cells/{row}/{column}/pencil-marks`
+- `POST /api/v1/game/{gameId}/actions/erase-cell`
+- `POST /api/v1/game/{gameId}/actions/request-hint`
+- `POST /api/v1/game/{gameId}/actions/reset`
+- `POST /api/v1/game/{gameId}/actions/cancel`
 
-- Discord Activity initial load
-- resume flow
+## Next Recommended Contract Changes
 
-Response:
+If you want the docs and implementation to converge toward the planned product API, the next backend changes should be:
 
-- `200 OK`
-- body: `GameSessionState`
-
-### POST `/game/{gameId}/actions/enter-value`
-
-Places or replaces the final value in one editable cell.
-
-Request:
-
-```json
-{
-  "row": 0,
-  "column": 1,
-  "value": 7
-}
-```
-
-Response:
-
-- `200 OK`
-- body: `GameActionResult`
-
-Rules:
-
-- reject edits to clue cells
-- clear pencil marks for the same cell if the action is accepted
-- in `guided`, keep the value and return correctness feedback
-- in `classic`, reject conflicting moves immediately
-
-### PUT `/game/{gameId}/cells/{row}/{column}/pencil-marks`
-
-Replaces the full pencil-mark set for one editable cell.
-
-Request:
-
-```json
-{
-  "marks": [1, 3, 8]
-}
-```
-
-Response:
-
-- `200 OK`
-- body: `GameActionResult`
-
-Rules:
-
-- marks must be unique digits from `1` to `9`
-- setting `marks: []` clears the pencil marks
-- clue cells cannot receive pencil marks
-
-### POST `/game/{gameId}/actions/erase-cell`
-
-Clears the entered value for one editable cell.
-
-Request:
-
-```json
-{
-  "row": 0,
-  "column": 1
-}
-```
-
-Response:
-
-- `200 OK`
-- body: `GameActionResult`
-
-Rules:
-
-- erasing a clue cell is rejected
-- pencil marks are left unchanged unless product rules later decide otherwise
-
-### POST `/game/{gameId}/actions/request-hint`
-
-Reveals the correct value for one editable cell.
-
-Request:
-
-```json
-{
-  "row": 0,
-  "column": 1
-}
-```
-
-Response:
-
-- `200 OK`
-- body: `GameActionResult`
-
-Rules:
-
-- hint must target an editable cell
-- accepted hint writes the correct final value into the cell
-- accepted hint clears pencil marks in that cell
-- backend increments session hint usage metrics
-
-### POST `/game/{gameId}/actions/reset`
-
-Resets the board to the original puzzle state.
-
-Request:
-
-```json
-{}
-```
-
-Response:
-
-- `200 OK`
-- body: `GameActionResult`
-
-Rules:
-
-- clears all non-clue entered values
-- clears all pencil marks
-- preserves the same `gameId`
-- preserves `startedAt`
-- updates `updatedAt`
-- resets completion state if the game had not been cancelled
-
-### POST `/game/{gameId}/actions/cancel`
-
-Cancels the current game.
-
-Request:
-
-```json
-{}
-```
-
-Response:
-
-- `200 OK`
-- body: `GameActionResult`
-
-Rules:
-
-- only the game owner should be able to cancel in MVP1
-- cancelled games become read-only
-
-## State Transition Rules
-
-### Game Creation
-
-- created session starts in `active` for solo MVP1
-- `pending` remains reserved for future collaborative lobby flow
-
-### Completion
-
-- backend marks the session `completed` when all editable cells match the solved board
-- `completedAt` is set once and never cleared
-
-### Cancellation
-
-- backend marks the session `cancelled`
-- further mutating actions return `GAME_NOT_ACTIVE`
-
-## Frontend Integration Notes
-
-The Discord Activity should:
-
-- fetch `GET /game/{gameId}` on load
-- treat the returned state as the single source of truth
-- optimistically update only local selection state, not authoritative board state
-- re-render from the returned `state` after every mutation
-
-The bot should:
-
-- call `POST /game` after the slash command
-- receive `gameId`
-- use that id to launch or deep-link the Activity session
-
-## Deferred Endpoints
-
-These are intentionally not part of MVP1:
-
-- `POST /game/{gameId}/join`
-- `POST /game/{gameId}/leave`
-- `POST /game/{gameId}/transfer-host`
-- `GET /game/{gameId}/events`
-- WebSocket or SSE sync endpoints
-
-## Open Questions
-
-- whether reset should also reset accumulated `mistakeCount` and `hintCount`
-- whether solo cancel should remain host-only or simply actor-only
-- whether `GET /game/{gameId}` also needs ETag/version metadata for later concurrency control
-- whether the backend should expose a lightweight list endpoint for "resume my active game"
+1. Change create from `/api/v1/game/create` to `/api/v1/game` or document `/create` as a deliberate choice long-term.
+2. Decide whether enum values should stay uppercase or be normalized to lowercase externally.
+3. Decide whether `validationMode` should remain required or default to `GUIDED`.
+4. Add `GET /api/v1/game/{gameId}` before documenting board/action endpoints as active API surface.
