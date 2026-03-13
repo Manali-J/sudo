@@ -1,0 +1,25 @@
+import type { CellData } from "./types";
+
+const initialBoard: Array<Array<number | null>> = [
+    [null, null, 3, null, 2, null, 6, null, null],
+    [9, null, null, 3, null, 5, null, null, 1],
+    [null, null, 1, 8, null, 6, 4, null, null],
+    [null, null, 8, 1, null, 2, 9, null, null],
+    [7, null, null, null, null, null, null, null, 8],
+    [null, null, 6, 7, null, 8, 2, null, null],
+    [null, null, 2, 6, null, 9, 5, null, null],
+    [8, null, null, 2, null, 3, null, null, 9],
+    [null, null, 5, null, 1, null, 3, null, null]
+];
+
+export function createInitialBoard(): CellData[] {
+    return initialBoard.flatMap((row, rowIndex) =>
+        row.map((value, colIndex) => ({
+            row: rowIndex,
+            col: colIndex,
+            value,
+            given: value !== null,
+            pencilMarks: []
+        }))
+    );
+}
