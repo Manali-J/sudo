@@ -10,5 +10,4 @@ public class GameException extends Exception {
         super(message);
         this.code = code;
     }
-
 }
